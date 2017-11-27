@@ -10,44 +10,33 @@ PER_PAGE = 100
 
 
 def get_organizations(request):
-    organizations_response = requests.get('https://api.github.com/organizations?per_page={0}'.format(PER_PAGE),
-                                          headers={'Accept': ACCEPT_HEADER})
+    """
+    Get number of GitHub organizations
+    :param request:
+    :return:
+    """
+    body = requests.get('https://api.github.com/search/users?q=type:org', headers={'Accept': ACCEPT_HEADER}).json()
 
-    organizations = organizations_response.json()
-
-    count = len(organizations)
-
-    link_header = organizations_response.headers.get('Link')
-
-    # Follow links
-    while link_header is not None:
-        links = get_links(link_header)
-
-        if links.get('next') is not None:
-            next = requests.get(links.get('next'), headers={'Accept': ACCEPT_HEADER})
-
-            # API rate limit exceeded
-            if next.status_code == 403:
-                return JsonResponse(next.content, status=403)
-
-            count += len(next.json())
-
-            link_header = next.headers.get('Link')
-
-    response = {'organizations': count}
+    response = {'total_count': body['total_count']}
 
     return JsonResponse(response)
 
 
 def get_repos(request, organization_name):
-    organization_response = requests.get('https://api.github.com/orgs/{}'.format(organization_name),
-                                         headers={'Accept': ACCEPT_HEADER})
+    """
+    Get number of repos and the biggest one (name and size) for a given organization
+    :param request:
+    :param organization_name:
+    :return:
+    """
+    response = requests.get('https://api.github.com/orgs/{}'.format(organization_name),
+                            headers={'Accept': ACCEPT_HEADER})
 
-    organization = organization_response.json()
+    body = response.json()
+    print(body)
+    response = {'public_repos': body['public_repos']}
 
-    response = {'public_repos': organization['public_repos']}
-
-    organization_id = organization['id']
+    organization_id = body['id']
 
     repos_response = requests.get(
         'https://api.github.com/organizations/{0}/repos?page=1&per_page={1}'.format(organization_id, PER_PAGE),
@@ -55,6 +44,7 @@ def get_repos(request, organization_name):
 
     repos = repos_response.json()
 
+    # biggest repo of the page
     biggest_repo = get_page_biggest_repo(repos)
 
     link_header = repos_response.headers.get('Link')
